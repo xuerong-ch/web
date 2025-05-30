@@ -36,8 +36,8 @@ const QUALITY_ORDER = {
 };
 
 const COLORS = {
-  'ACEPTABLE': '#84cc16',
-  'BIEN': '#4ade80',
+  'ACEPTABLE': '#4ade80', // verde
+  'BIEN': '#84cc16', // verde amarilloso
   'REGULAR': '#fbbf24',
   'MALA': '#ef4444',
   'MUY MALA': '#991b1b'
@@ -62,7 +62,7 @@ function App() {
         
         // Check which listings have detailed analysis
         const listings = result.data as Listing[];
-        const urlToCheck = 'www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053';
+        const urlToCheck = 'www.deysa.com/coches/km0/madrid/ford/focus/gasolina/st-2-3-ecoboost-206kw-280cv/1051053';
         
         const enhancedListings = listings.map(listing => ({
           ...listing,
@@ -75,9 +75,14 @@ function App() {
 
   const fetchDetailedAnalysis = async (listing: Listing) => {
     if (listing.hasDetailedAnalysis) {
-      const response = await fetch('/www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053.txt');
-      const text = await response.text();
-      setDetailedAnalysis(text);
+      try {
+        const response = await fetch('/www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053.txt');
+        const text = await response.text();
+        setDetailedAnalysis(text);
+      } catch (error) {
+        console.error('Error fetching detailed analysis:', error);
+        setDetailedAnalysis(null);
+      }
     } else {
       setDetailedAnalysis(null);
     }
@@ -106,9 +111,9 @@ function App() {
     const mappedQuality = QUALITY_MAPPING[quality as keyof typeof QUALITY_MAPPING];
     switch (mappedQuality) {
       case 'ACEPTABLE':
-        return 'bg-lime-100 text-lime-800';
-      case 'BIEN':
         return 'bg-green-100 text-green-800';
+      case 'BIEN':
+        return 'bg-lime-100 text-lime-800';
       case 'REGULAR':
         return 'bg-yellow-100 text-yellow-800';
       case 'MALA':
@@ -177,7 +182,6 @@ function App() {
                   />
                 ))}
               </Pie>
-              <Tooltip />
             </PieChart>
           </div>
 
@@ -190,8 +194,7 @@ function App() {
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#8884d8">
+              <Bar dataKey="value">
                 {qualityDistribution.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 
