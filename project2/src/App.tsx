@@ -285,7 +285,7 @@ function App() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             {item.hasDetailedAnalysis ? (
-                              <FileText className="w-5 h-5 text-green-500 inline" titleAccess="Análisis detallado disponible"/>
+                              <FileText className="w-5 h-5 text-green-500 inline\" titleAccess="Análisis detallado disponible"/>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
