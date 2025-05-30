@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   PieChart, Pie, Cell 
 } from 'recharts';
 import { ExternalLink, ArrowUpDown, FileText } from 'lucide-react';
@@ -51,7 +51,6 @@ function App() {
   const [detailedAnalysis, setDetailedAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch CSV data
     fetch('/Calidad de publicaciones - Listings_Deysa (1).csv')
       .then(response => response.text())
       .then(csvText => {
@@ -60,14 +59,15 @@ function App() {
           skipEmptyLines: true,
         });
         
-        // Check which listings have detailed analysis
         const listings = result.data as Listing[];
-        const urlToCheck = 'www.deysa.com/coches/km0/madrid/ford/focus/gasolina/st-2-3-ecoboost-206kw-280cv/1051053';
-        
-        const enhancedListings = listings.map(listing => ({
-          ...listing,
-          hasDetailedAnalysis: listing.LINK?.includes(urlToCheck) || false
-        }));
+        const enhancedListings = listings.map(listing => {
+          const listingUrl = listing.LINK?.replace(/https?:\/\//, '').replace(/\//g, '_');
+          const analysisUrl = 'www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053';
+          return {
+            ...listing,
+            hasDetailedAnalysis: listingUrl === analysisUrl
+          };
+        });
         
         setData(enhancedListings);
       });
@@ -191,7 +191,7 @@ function App() {
             </h2>
             <BarChart width={400} height={300} data={qualityDistribution}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} />
               <YAxis />
               <Tooltip />
               <Bar dataKey="value">
