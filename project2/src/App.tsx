@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   PieChart, Pie, Cell 
 } from 'recharts';
-import { ExternalLink, ArrowUpDown } from 'lucide-react';
+import { ExternalLink, ArrowUpDown, FileText } from 'lucide-react';
 
 interface Listing {
   MARCA: string;
@@ -16,6 +16,7 @@ interface Listing {
   ILUMINACIÓN: string;
   ENFOQUE: string;
   COLOR: string;
+  hasDetailedAnalysis?: boolean;
 }
 
 const QUALITY_MAPPING = {
@@ -35,19 +36,22 @@ const QUALITY_ORDER = {
 };
 
 const COLORS = {
-  'ACEPTABLE': '#84cc16', // verde amarilloso
-  'BIEN': '#4ade80', // verde
+  'ACEPTABLE': '#84cc16',
+  'BIEN': '#4ade80',
   'REGULAR': '#fbbf24',
-  'MALA': '#ef4444', // rojo
-  'MUY MALA': '#991b1b' // rojo oscuro
+  'MALA': '#ef4444',
+  'MUY MALA': '#991b1b'
 };
 
 function App() {
   const [data, setData] = useState<Listing[]>([]);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [showOnlyDetailed, setShowOnlyDetailed] = useState(false);
+  const [detailedAnalysis, setDetailedAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
+    // Fetch CSV data
     fetch('/Calidad de publicaciones - Listings_Deysa (1).csv')
       .then(response => response.text())
       .then(csvText => {
@@ -55,13 +59,34 @@ function App() {
           header: true,
           skipEmptyLines: true,
         });
-        setData(result.data as Listing[]);
+        
+        // Check which listings have detailed analysis
+        const listings = result.data as Listing[];
+        const urlToCheck = 'www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053';
+        
+        const enhancedListings = listings.map(listing => ({
+          ...listing,
+          hasDetailedAnalysis: listing.LINK?.includes(urlToCheck) || false
+        }));
+        
+        setData(enhancedListings);
       });
   }, []);
 
+  const fetchDetailedAnalysis = async (listing: Listing) => {
+    if (listing.hasDetailedAnalysis) {
+      const response = await fetch('/www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053.txt');
+      const text = await response.text();
+      setDetailedAnalysis(text);
+    } else {
+      setDetailedAnalysis(null);
+    }
+  };
+
   const qualityDistribution = React.useMemo(() => {
+    const filteredData = showOnlyDetailed ? data.filter(item => item.hasDetailedAnalysis) : data;
     const distribution: { [key: string]: number } = {};
-    data.forEach(item => {
+    filteredData.forEach(item => {
       const mappedQuality = QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING];
       if (mappedQuality) {
         distribution[mappedQuality] = (distribution[mappedQuality] || 0) + 1;
@@ -70,7 +95,7 @@ function App() {
     return Object.entries(distribution)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => QUALITY_ORDER[a.name as keyof typeof QUALITY_ORDER] - QUALITY_ORDER[b.name as keyof typeof QUALITY_ORDER]);
-  }, [data]);
+  }, [data, showOnlyDetailed]);
 
   const getQualityColor = (quality: string) => {
     const mappedQuality = QUALITY_MAPPING[quality as keyof typeof QUALITY_MAPPING];
@@ -96,12 +121,13 @@ function App() {
   };
 
   const sortedData = React.useMemo(() => {
-    return [...data].sort((a, b) => {
+    const filteredData = showOnlyDetailed ? data.filter(item => item.hasDetailedAnalysis) : data;
+    return [...filteredData].sort((a, b) => {
       const qualityA = QUALITY_ORDER[QUALITY_MAPPING[a.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || 0;
       const qualityB = QUALITY_ORDER[QUALITY_MAPPING[b.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || 0;
       return sortOrder === 'asc' ? qualityA - qualityB : qualityB - qualityA;
     });
-  }, [data, sortOrder]);
+  }, [data, sortOrder, showOnlyDetailed]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,6 +140,18 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="mb-6 flex items-center gap-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showOnlyDetailed}
+              onChange={(e) => setShowOnlyDetailed(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">Mostrar solo anuncios con análisis detallado</span>
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">
@@ -184,6 +222,9 @@ function App() {
                       Calidad
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Análisis Detallado
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Acciones
                     </th>
                   </tr>
@@ -200,9 +241,19 @@ function App() {
                             {QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING]}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {item.hasDetailedAnalysis && (
+                            <span className="text-green-600">
+                              <FileText className="w-4 h-4 inline" /> Disponible
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <button
-                            onClick={() => setSelectedListing(item)}
+                            onClick={() => {
+                              setSelectedListing(item);
+                              fetchDetailedAnalysis(item);
+                            }}
                             className="text-blue-600 hover:text-blue-800"
                           >
                             Ver detalles
@@ -254,7 +305,7 @@ function App() {
                 <p className="text-gray-600">{selectedListing.EXPLICACION}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <h3 className="font-medium text-gray-700">Composición</h3>
                   <p className="text-gray-600">{selectedListing.COMPOSICIÓN}</p>
@@ -272,6 +323,17 @@ function App() {
                   <p className="text-gray-600">{selectedListing.COLOR}</p>
                 </div>
               </div>
+
+              {selectedListing.hasDetailedAnalysis && (
+                <div className="mt-6">
+                  <h3 className="font-medium text-gray-700 mb-2">Análisis Detallado</h3>
+                  {detailedAnalysis && (
+                    <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96">
+                      <pre className="whitespace-pre-wrap text-sm">{detailedAnalysis}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
