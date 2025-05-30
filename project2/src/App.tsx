@@ -5,24 +5,18 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import { ExternalLink, ArrowUpDown, FileText } from 'lucide-react';
+import { formatTextForDisplay } from './utils/textProcessor';
 
-// 1. FUNCIÓN AUXILIAR PARA TRANSFORMAR EL ENLACE
-// Esta función transforma un URL al formato base del nombre de archivo que esperas
-// (ej: "https://dominio.com/ruta/id/" -> "dominio.com_ruta_id")
 const transformLinkToDeysaBaseFilename = (link: string | undefined): string | null => {
   if (!link) return null;
-  // Eliminar http:// o https://
   let filename = link.replace(/https?:\/\//, '');
-  // Eliminar la barra diagonal final si existe
   if (filename.endsWith('/')) {
     filename = filename.slice(0, -1);
   }
-  // Reemplazar todas las barras diagonales restantes con guiones bajos
   filename = filename.replace(/\//g, '_');
   return filename;
 };
 
-// 2. INTERFAZ Listing ACTUALIZADA
 interface Listing {
   MARCA: string;
   MODELO: string;
@@ -34,7 +28,7 @@ interface Listing {
   ENFOQUE: string;
   COLOR: string;
   hasDetailedAnalysis?: boolean;
-  detailedAnalysisFilename?: string | null; // NUEVO CAMPO: para el nombre completo del archivo .txt
+  detailedAnalysisFilename?: string | null;
 }
 
 const QUALITY_MAPPING = {
@@ -54,8 +48,8 @@ const QUALITY_ORDER = {
 };
 
 const COLORS = {
-  'ACEPTABLE': '#4ade80', // verde
-  'BIEN': '#84cc16', // verde amarilloso
+  'ACEPTABLE': '#4ade80',
+  'BIEN': '#84cc16',
   'REGULAR': '#fbbf24',
   'MALA': '#ef4444',
   'MUY MALA': '#991b1b'
@@ -68,7 +62,6 @@ function App() {
   const [showOnlyDetailed, setShowOnlyDetailed] = useState(false);
   const [detailedAnalysis, setDetailedAnalysis] = useState<string | null>(null);
 
-  // 3. useEffect MODIFICADO
   useEffect(() => {
     fetch('/Calidad de publicaciones - Listings_Deysa (1).csv')
       .then(response => response.text())
@@ -78,11 +71,8 @@ function App() {
           skipEmptyLines: true,
         });
 
-        // Asumimos que los datos del CSV no tienen 'hasDetailedAnalysis' ni 'detailedAnalysisFilename' inicialmente
         const listingsFromCsv = result.data as Omit<Listing, 'hasDetailedAnalysis' | 'detailedAnalysisFilename'>[];
 
-        // Este es el nombre base del archivo de análisis detallado específico que estás buscando.
-        // Coincide con tu ejemplo: www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053
         const targetDetailedAnalysisBaseFilename = 'www.deysa.com_coches_km0_madrid_ford_focus_gasolina_st-2-3-ecoboost-206kw-280cv_1051053';
 
         const enhancedListings = listingsFromCsv.map(listing => {
@@ -92,34 +82,29 @@ function App() {
           return {
             ...listing,
             hasDetailedAnalysis: hasAnalysis,
-            // Almacena el nombre completo del archivo .txt si el análisis detallado existe para este anuncio
             detailedAnalysisFilename: hasAnalysis ? `${targetDetailedAnalysisBaseFilename}.txt` : null,
           };
         });
 
-        setData(enhancedListings as Listing[]); // Ahora `enhancedListings` tiene el tipo `Listing[]` completo
+        setData(enhancedListings as Listing[]);
       });
   }, []);
 
-  // 4. fetchDetailedAnalysis MODIFICADO
   const fetchDetailedAnalysis = async (listing: Listing) => {
-    // Solo intenta cargar si `hasDetailedAnalysis` es true y `detailedAnalysisFilename` está presente
     if (listing.hasDetailedAnalysis && listing.detailedAnalysisFilename) {
       try {
-        // Usa el nombre de archivo almacenado en el objeto listing
         const response = await fetch(`/${listing.detailedAnalysisFilename}`);
         if (!response.ok) {
-          // Si el archivo no se encuentra o hay otro error HTTP
           throw new Error(`HTTP error! status: ${response.status} for ${listing.detailedAnalysisFilename}`);
         }
         const text = await response.text();
-        setDetailedAnalysis(text);
+        const formattedText = formatTextForDisplay(text);
+        setDetailedAnalysis(formattedText);
       } catch (error) {
         console.error('Error fetching detailed analysis:', error);
         setDetailedAnalysis(`Error al cargar el análisis: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
-      // Si no hay análisis detallado para este anuncio, limpia el estado.
       setDetailedAnalysis(null);
     }
   };
@@ -138,13 +123,11 @@ function App() {
       .sort((a, b) => QUALITY_ORDER[a.name as keyof typeof QUALITY_ORDER] - QUALITY_ORDER[b.name as keyof typeof QUALITY_ORDER]);
   }, [data, showOnlyDetailed]);
 
-  // getQualityColor no necesita cambios
   const getQualityColor = (quality: string) => {
     const mappedQuality = QUALITY_MAPPING[quality as keyof typeof QUALITY_MAPPING];
     return COLORS[mappedQuality as keyof typeof COLORS];
   };
 
-  // getQualityClasses no necesita cambios
   const getQualityClasses = (quality: string) => {
     const mappedQuality = QUALITY_MAPPING[quality as keyof typeof QUALITY_MAPPING];
     switch (mappedQuality) {
@@ -163,12 +146,11 @@ function App() {
     }
   };
 
-  // sortedData no necesita cambios directos por esta lógica, pero se beneficiará de la correcta `hasDetailedAnalysis`
   const sortedData = React.useMemo(() => {
     const filteredData = showOnlyDetailed ? data.filter(item => item.hasDetailedAnalysis) : data;
     return [...filteredData].sort((a, b) => {
-      const qualityA = QUALITY_ORDER[QUALITY_MAPPING[a.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || Infinity; // Default to a high value if undefined
-      const qualityB = QUALITY_ORDER[QUALITY_MAPPING[b.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || Infinity; // Default to a high value if undefined
+      const qualityA = QUALITY_ORDER[QUALITY_MAPPING[a.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || Infinity;
+      const qualityB = QUALITY_ORDER[QUALITY_MAPPING[b.CALIDAD as keyof typeof QUALITY_MAPPING] as keyof typeof QUALITY_ORDER] || Infinity;
       return sortOrder === 'asc' ? qualityA - qualityB : qualityB - qualityA;
     });
   }, [data, sortOrder, showOnlyDetailed]);
@@ -196,7 +178,6 @@ function App() {
           </label>
         </div>
 
-        {/* Charts Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">
@@ -235,27 +216,26 @@ function App() {
               Distribución de Calidad (Barras)
             </h2>
             {qualityDistribution.length > 0 ? (
-            <BarChart width={400} height={300} data={qualityDistribution} margin={{ top: 5, right: 20, left: 10, bottom: 50 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0} style={{ fontSize: '0.8rem' }} />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="value">
-                {qualityDistribution.map((entry, index) => (
-                  <Cell
-                    key={`cell-bar-${index}`}
-                    fill={COLORS[entry.name as keyof typeof COLORS]}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
+              <BarChart width={400} height={300} data={qualityDistribution} margin={{ top: 5, right: 20, left: 10, bottom: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0} style={{ fontSize: '0.8rem' }} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value">
+                  {qualityDistribution.map((entry, index) => (
+                    <Cell
+                      key={`cell-bar-${index}`}
+                      fill={COLORS[entry.name as keyof typeof COLORS]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
             ) : (
               <p className="text-gray-500">No hay datos para mostrar.</p>
             )}
           </div>
         </div>
 
-        {/* Listings Table and Details Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
@@ -269,71 +249,70 @@ function App() {
             </div>
             <div className="overflow-x-auto">
               {sortedData.length > 0 ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Marca
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Modelo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Calidad
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Análisis Det.
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {sortedData
-                    .filter(item => QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING]) // Asegura que la calidad es válida
-                    .map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.MARCA}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.MODELO || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getQualityClasses(item.CALIDAD)}`}
-                          >
-                            {QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING]}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          {item.hasDetailedAnalysis ? (
-                            <FileText className="w-5 h-5 text-green-500 inline" titleAccess="Análisis detallado disponible"/>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => {
-                              setSelectedListing(item);
-                              fetchDetailedAnalysis(item);
-                            }}
-                            className="text-indigo-600 hover:text-indigo-900 font-medium"
-                          >
-                            Ver detalles
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Marca
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Modelo
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Calidad
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Análisis Det.
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {sortedData
+                      .filter(item => QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING])
+                      .map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.MARCA}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.MODELO || 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getQualityClasses(item.CALIDAD)}`}
+                            >
+                              {QUALITY_MAPPING[item.CALIDAD as keyof typeof QUALITY_MAPPING]}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {item.hasDetailedAnalysis ? (
+                              <FileText className="w-5 h-5 text-green-500 inline" titleAccess="Análisis detallado disponible"/>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => {
+                                setSelectedListing(item);
+                                fetchDetailedAnalysis(item);
+                              }}
+                              className="text-indigo-600 hover:text-indigo-900 font-medium"
+                            >
+                              Ver detalles
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               ) : (
                 <p className="p-4 text-gray-500">No hay anuncios para mostrar según los filtros actuales.</p>
               )}
             </div>
           </div>
 
-          {/* Selected Listing Details */}
           {selectedListing && (
-            <div className="lg:col-span-1 bg-white shadow-lg rounded-lg p-6 self-start"> {/* self-start para alinear arriba */}
+            <div className="lg:col-span-1 bg-white shadow-lg rounded-lg p-6 self-start">
               <div className="flex justify-between items-start mb-4">
                 <h2 className="text-2xl font-semibold text-gray-800">Detalles del Anuncio</h2>
                 <button
@@ -354,7 +333,7 @@ function App() {
                   <h3 className="text-sm font-medium text-gray-500">Modelo</h3>
                   <p className="text-gray-800">{selectedListing.MODELO || 'N/A'}</p>
                 </div>
-                 <div>
+                <div>
                   <h3 className="text-sm font-medium text-gray-500">Calidad</h3>
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getQualityClasses(selectedListing.CALIDAD)}`}
@@ -386,7 +365,7 @@ function App() {
                   <p className="text-gray-700 text-sm">{selectedListing.COLOR}</p>
                 </div>
               </div>
-               <a
+              <a
                 href={selectedListing.LINK}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -400,16 +379,19 @@ function App() {
                   <h3 className="text-base font-semibold text-gray-700 mb-2">Análisis Detallado del Anuncio</h3>
                   {detailedAnalysis ? (
                     detailedAnalysis.startsWith('Error al cargar') ? (
-                       <div className="bg-red-50 p-3 rounded-md text-red-700 text-sm">
-                         {detailedAnalysis}
-                       </div>
+                      <div className="bg-red-50 p-3 rounded-md text-red-700 text-sm">
+                        {detailedAnalysis}
+                      </div>
                     ) : (
-                      <div className="bg-gray-100 p-3 rounded-md overflow-auto max-h-80"> {/* Aumentado max-h */}
-                        <pre className="whitespace-pre-wrap text-xs text-gray-700">{detailedAnalysis}</pre>
+                      <div className="bg-gray-100 p-3 rounded-md overflow-auto max-h-[32rem]">
+                        <div 
+                          className="prose prose-sm max-w-none text-gray-700"
+                          dangerouslySetInnerHTML={{ __html: detailedAnalysis }}
+                        />
                       </div>
                     )
                   ) : (
-                     <p className="text-gray-500 text-sm">Cargando análisis...</p>
+                    <p className="text-gray-500 text-sm">Cargando análisis...</p>
                   )}
                 </div>
               )}
